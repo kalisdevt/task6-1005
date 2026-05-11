@@ -1,13 +1,9 @@
 <?php
-/**
- * admin.php - Панель администратора
- */
-
 // 1. Подключение к БД
 $pdo = new PDO('mysql:host=localhost;dbname=u82282', 'u82282', '9786483');
 $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-// 2. HTTP-авторизация [cite: 26]
+// 2. HTTP-авторизация
 function authenticate($pdo) {
     if (!isset($_SERVER['PHP_AUTH_USER'])) {
         return false;
@@ -33,7 +29,7 @@ if (!authenticate($pdo)) {
 // 3. Обработка действий (Удаление/Редактирование)
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     if (isset($_POST['delete_id'])) {
-        // Удаление пользователя и его связей [cite: 27]
+        // Удаление пользователя и его связей
         $id = intval($_POST['delete_id']);
         $pdo->prepare("DELETE FROM record_langs WHERE id = ?")->execute([$id]);
         $pdo->prepare("DELETE FROM application WHERE id = ?")->execute([$id]);
@@ -42,7 +38,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 }
 
-// 4. Получение статистики [cite: 29, 35]
+// 4. Получение статистики
 $stats_stmt = $pdo->query("
     SELECT l.lang_name, COUNT(rl.id) as count 
     FROM languages l 
@@ -51,7 +47,7 @@ $stats_stmt = $pdo->query("
 ");
 $stats = $stats_stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// 5. Получение всех данных пользователей [cite: 27]
+// 5. Получение всех данных пользователей
 $users_stmt = $pdo->query("SELECT * FROM application");
 $users = $users_stmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
