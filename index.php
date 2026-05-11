@@ -1,9 +1,6 @@
 <?php
-/**
- * index.php - Основной файл управления формой и логикой сессий
- */
 header('Content-Type: text/html; charset=UTF-8');
-session_start(); // Инициализация механизма сессий [cite: 3]
+session_start(); // Инициализация механизма сессий
 
 // 1. Подключение к БД
 try {
@@ -15,7 +12,7 @@ try {
     die('Ошибка подключения к БД: ' . $e->getMessage());
 }
 
-// Вспомогательная функция для проверки прав администратора (Задание 6) [cite: 26]
+// Вспомогательная функция для проверки прав администратора
 function isAdmin($pdo) {
     if (!isset($_SERVER['PHP_AUTH_USER'])) return false;
     $stmt = $pdo->prepare("SELECT password_hash FROM admins WHERE login = ?");
@@ -35,7 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'GET') {
         exit();
     }
 
-    // Проверка режима редактирования для администратора [cite: 28]
+    // Проверка режима редактирования для администратора
     if (!empty($_GET['edit_id'])) {
         if (!isAdmin($pdo)) {
             header('HTTP/1.1 401 Unauthorized');
@@ -74,7 +71,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'GET') {
     $target_id = $_SESSION['admin_edit_id'] ?? ($_SESSION['uid'] ?? null);
 
     if ($target_id) {
-        // Загрузка данных из БД для авторизованного пользователя или админ-правки [cite: 12]
+        // Загрузка данных из БД для авторизованного пользователя или админа
         $stmt = $pdo->prepare("SELECT * FROM application WHERE id = ?");
         $stmt->execute([$target_id]);
         $row = $stmt->fetch();
@@ -92,7 +89,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'GET') {
             $values['languages'] = $stmt->fetchAll(PDO::FETCH_COLUMN);
         }
     } else {
-        // Значения из кук для неавторизованных пользователей [cite: 14]
+        // Значения из кук для неавторизованных пользователей
         foreach ($fields as $f) $values[$f] = $_COOKIE[$f.'_value'] ?? '';
         $values['languages'] = isset($_COOKIE['languages_value']) ? unserialize($_COOKIE['languages_value']) : array();
     }
@@ -116,15 +113,80 @@ else {
         exit();
     }
 
-    // 2. Валидация данных формы [cite: 14]
-    $errors = false;
+    // 2. Валидация данных формы
+    // ФИО
     if (empty($_POST['fio']) || !preg_match('/^[a-zA-Zа-яА-ЯёЁ\s]{1,150}$/u', $_POST['fio'])) {
-        setcookie('fio_error', '1', time() + 86400);
-        setcookie('fio_error_msg', 'Некорректное ФИО', time() + 86400);
-        $errors = true;
+        setcookie('fio_error', '1', time() + 24 * 60 * 60);
+        setcookie('fio_error_msg', 'ФИО должно содержать только буквы и пробелы (1-150 символов)', time() + 24 * 60 * 60);
+        $errors = TRUE;
     }
-    setcookie('fio_value', $_POST['fio'], time() + 31536000);
-    // ... (аналогичная валидация для остальных полей: phone, email, birth_date, gender, languages, bio, contract)
+    setcookie('fio_value', $_POST['fio'] ?? '', time() + 365 * 24 * 60 * 60);
+    
+    // Телефон
+    if (empty($_POST['phone']) || !preg_match('/^[\d\s\-\+\(\)]{10,20}$/', $_POST['phone'])) {
+        setcookie('phone_error', '1', time() + 24 * 60 * 60);
+        setcookie('phone_error_msg', 'Телефон должен содержать 10-20 цифр и символов + - () пробелы', time() + 24 * 60 * 60);
+        $errors = TRUE;
+    }
+    setcookie('phone_value', $_POST['phone'] ?? '', time() + 365 * 24 * 60 * 60);
+    
+    // Email
+    if (empty($_POST['email']) || !preg_match('/^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/', $_POST['email'])) {
+        setcookie('email_error', '1', time() + 24 * 60 * 60);
+        setcookie('email_error_msg', 'Введите корректный email адрес', time() + 24 * 60 * 60);
+        $errors = TRUE;
+    }
+    setcookie('email_value', $_POST['email'] ?? '', time() + 365 * 24 * 60 * 60);
+    
+    // Дата рождения
+    if (empty($_POST['birth_date'])) {
+        setcookie('birth_date_error', '1', time() + 24 * 60 * 60);
+        setcookie('birth_date_error_msg', 'Укажите дату рождения', time() + 24 * 60 * 60);
+        $errors = TRUE;
+    }
+    setcookie('birth_date_value', $_POST['birth_date'] ?? '', time() + 365 * 24 * 60 * 60);
+    
+    // Пол
+    if (empty($_POST['gender']) || !in_array($_POST['gender'], array('male', 'female'))) {
+        setcookie('gender_error', '1', time() + 24 * 60 * 60);
+        setcookie('gender_error_msg', 'Выберите пол', time() + 24 * 60 * 60);
+        $errors = TRUE;
+    }
+    setcookie('gender_value', $_POST['gender'] ?? '', time() + 365 * 24 * 60 * 60);
+    
+    // Языки
+    $allowed_languages = array('Pascal', 'C', 'C++', 'JavaScript', 'PHP', 'Python', 'Java', 'Haskell', 'Clojure', 'Prolog', 'Scala', 'Go');
+    if (empty($_POST['languages']) || !is_array($_POST['languages'])) {
+        setcookie('languages_error', '1', time() + 24 * 60 * 60);
+        setcookie('languages_error_msg', 'Выберите хотя бы один язык', time() + 24 * 60 * 60);
+        $errors = TRUE;
+    } else {
+        foreach ($_POST['languages'] as $lang) {
+            if (!in_array($lang, $allowed_languages)) {
+                setcookie('languages_error', '1', time() + 24 * 60 * 60);
+                setcookie('languages_error_msg', 'Недопустимый язык', time() + 24 * 60 * 60);
+                $errors = TRUE;
+                break;
+            }
+        }
+    }
+    setcookie('languages_value', isset($_POST['languages']) ? serialize($_POST['languages']) : '', time() + 365 * 24 * 60 * 60);
+    
+    // Биография
+    if (!empty($_POST['bio']) && strlen($_POST['bio']) > 1000) {
+        setcookie('bio_error', '1', time() + 24 * 60 * 60);
+        setcookie('bio_error_msg', 'Биография не более 1000 символов', time() + 24 * 60 * 60);
+        $errors = TRUE;
+    }
+    setcookie('bio_value', $_POST['bio'] ?? '', time() + 365 * 24 * 60 * 60);
+    
+    // Контракт
+    if (empty($_POST['contract'])) {
+        setcookie('contract_error', '1', time() + 24 * 60 * 60);
+        setcookie('contract_error_msg', 'Согласитесь с контрактом', time() + 24 * 60 * 60);
+        $errors = TRUE;
+    }
+    setcookie('contract_value', $_POST['contract'] ?? '', time() + 365 * 24 * 60 * 60);
 
     if ($errors) {
         $query = !empty($_SESSION['admin_edit_id']) ? '?edit_id='.$_SESSION['admin_edit_id'] : '';
@@ -136,16 +198,16 @@ else {
     $edit_id = $_SESSION['admin_edit_id'] ?? ($_SESSION['uid'] ?? null);
 
     if ($edit_id) {
-        // ОБНОВЛЕНИЕ существующей записи [cite: 13, 28]
+        // ОБНОВЛЕНИЕ существующей записи
         $stmt = $pdo->prepare("UPDATE application SET fio=?, phone_number=?, email=?, birth_date=?, sex=?, biography=? WHERE id=?");
         $stmt->execute([$_POST['fio'], $_POST['phone'], $_POST['email'], $_POST['birth_date'], $_POST['gender'], $_POST['bio'], $edit_id]);
         
         $pdo->prepare("DELETE FROM record_langs WHERE id=?")->execute([$edit_id]);
     } else {
-        // СОЗДАНИЕ новой записи [cite: 11]
+        // СОЗДАНИЕ новой записи
         $login = 'user' . rand(1000, 9999);
         $pass = rand(100000, 999999);
-        $pass_hash = password_hash($pass, PASSWORD_DEFAULT); // Хеширование пароля [cite: 5]
+        $pass_hash = password_hash($pass, PASSWORD_DEFAULT); // Хеширование пароля
         
         $_SESSION['generated_login'] = $login;
         $_SESSION['generated_pass'] = $pass;
